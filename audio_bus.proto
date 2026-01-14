@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package audiobus;
+
+message SubscribeRequest {}
+
+message AudioFrame {
+  uint64 timestamp_unix_ms = 1;
+  uint32 sampling_rate = 2;
+  uint32 channels = 3;
+  uint32 samples_per_channel = 4;
+
+  repeated int32 raw_channels = 5;
+  repeated float raw = 6;
+
+  repeated float beam = 7;
+  repeated float echo = 8;
+}
+
+service AudioBus {
+  rpc Subscribe(SubscribeRequest) returns (stream AudioFrame);
+}
