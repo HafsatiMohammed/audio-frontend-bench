@@ -1,0 +1,26 @@
+{
+  "sample_rate_hz": 16000,
+  "chunk_samples": 1600,
+  "chunk_duration_s": 0.1,
+  "measure_seconds_target": 10.0,
+  "measure_seconds_actual": 10.267148786006146,
+  "audio_seconds_processed": 0.1,
+  "chunks_processed": 1,
+  "latency_ms": {
+    "avg": 1.4756769960513338,
+    "p50": 1.4756769960513338,
+    "p95": 1.4756769960513338,
+    "max": 1.4756769960513338
+  },
+  "rtf_avg": 0.014756769960513338,
+  "cpu_utilization_percent": 75.58719765099306,
+  "aec3_metrics_avg": {
+    "erl_db": -30.0,
+    "erle_db": 0.17551203072071075,
+    "delay_ms": 104.0
+  },
+  "params": {
+    "initial_delay_ms": 120,
+    "frame_samples": 160
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "algo": "dec_onnx",
+  "sample_rate_hz": 16000,
+  "chunk_samples": 1600,
+  "chunk_duration_s": 0.1,
+  "measure_seconds_target": 10.0,
+  "measure_seconds_actual": 10.278441473004932,
+  "audio_seconds_processed": 0.1,
+  "chunks_processed": 1,
+  "latency_ms": {
+    "avg": 2.361001999815926,
+    "p50": 2.361001999815926,
+    "p95": 2.361001999815926,
+    "max": 2.361001999815926
+  },
+  "rtf_avg": 0.02361001999815926,
+  "cpu_utilization_percent": 74.77212349931442,
+  "gpu_utilization_percent": 0.0,
+  "echo_corr": {
+    "before_avg": 0.0,
+    "after_avg": 0.0
+  },
+  "model": {
+    "path": "/home/mohammed/Documents/audio-frontend-bench/modules/dec-baseline-model-icassp2022.onnx",
+    "frame_size": 320,
+    "hop_size": 160,
+    "dft_size": 320,
+    "hidden_size": 322
+  },
+  "error": null,
+  "notes": [
+    "DEC runs inference every 10ms hop (160 samples @16k) using a 20ms window (320 samples) and overlap-add.",
+    "echo_corr is a rough proxy: correlation(near, far) should drop after AEC if echo reference is correct."
+  ]
+}

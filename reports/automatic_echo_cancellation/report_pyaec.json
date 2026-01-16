@@ -1,0 +1,27 @@
+{
+  "algo": "pyaec",
+  "sample_rate_hz": 16000,
+  "chunk_samples": 1600,
+  "chunk_duration_s": 0.1,
+  "frame_samples": 160,
+  "measure_seconds_target": 10.0,
+  "measure_seconds_actual": 10.066316964999714,
+  "audio_seconds_processed": 10.100000000000001,
+  "chunks_processed": 101,
+  "latency_ms": {
+    "avg": 1.522371217439592,
+    "p50": 1.5070580047904514,
+    "p95": 2.2356539993779734,
+    "max": 2.6759919928736053
+  },
+  "rtf_avg": 0.015223712174395918,
+  "cpu_utilization_percent": 77.00562736055491,
+  "echo_corr": {
+    "before_avg": 0.0,
+    "after_avg": 0.0
+  },
+  "params": {
+    "filter_length_samples": 6400
+  },
+  "error": null
+}

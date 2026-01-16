@@ -1,0 +1,24 @@
+{
+  "sample_rate_hz": 16000,
+  "chunk_samples": 1600,
+  "chunk_duration_s": 0.1,
+  "measure_seconds_target": 10.0,
+  "measure_seconds_actual": 10.050096200000553,
+  "audio_seconds_processed": 10.0,
+  "chunks_processed": 100,
+  "latency_ms": {
+    "avg": 23.639545959522366,
+    "p50": 23.261377496964997,
+    "p95": 26.176706047408512,
+    "max": 42.180454001936596
+  },
+  "rtf_avg": 0.23639545959522365,
+  "cpu_utilization_percent": 34.04291013652001,
+  "gpu_utilization_percent": 0.0,
+  "error": null,
+  "notes": [
+    "CPU utilization is process_time / wall_time.",
+    "GPU utilization uses nvidia-smi when available; otherwise null.",
+    "DeepFilterNetStreaming runs at 48k; this script resamples 16k<->48k per chunk."
+  ]
+}

@@ -107,21 +107,33 @@ def stream_audio(cfg):
 
     try:
         while True:
-            data = stream.read(int(chunk), exception_on_overflow=False)
-            chunk_data = _chunk_to_floatarray(data, channels)
-            raw = None
-            raw_channel_indices = []
-            if raw_channels:
-                raw_channel_indices = list(raw_channels)
-                raw = chunk_data[raw_channels, :].copy()
-            beam = chunk_data[beam_channel, :].copy() if beam_channel is not None else None
-            echo = chunk_data[echo_channel, :].copy() if echo_channel is not None else None
-            yield {
-                "raw": raw,
-                "raw_channels": raw_channel_indices,
-                "beam": beam,
-                "echo": echo,
-            }
+            try:
+                data = stream.read(int(chunk), exception_on_overflow=False)
+            except Exception as e:
+                # Handle audio device errors gracefully
+                _warn(f"Audio device read error: {e}")
+                _warn("Stopping audio stream due to device error")
+                break  # Exit the loop gracefully
+            
+            try:
+                chunk_data = _chunk_to_floatarray(data, channels)
+                raw = None
+                raw_channel_indices = []
+                if raw_channels:
+                    raw_channel_indices = list(raw_channels)
+                    raw = chunk_data[raw_channels, :].copy()
+                beam = chunk_data[beam_channel, :].copy() if beam_channel is not None else None
+                echo = chunk_data[echo_channel, :].copy() if echo_channel is not None else None
+                yield {
+                    "raw": raw,
+                    "raw_channels": raw_channel_indices,
+                    "beam": beam,
+                    "echo": echo,
+                }
+            except Exception as e:
+                _warn(f"Error processing audio chunk: {e}")
+                # Continue to next chunk instead of breaking
+                continue
     finally:
         stream.stop_stream()
         stream.close()

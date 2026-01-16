@@ -1,0 +1,23 @@
+{
+  "sample_rate_hz": 16000,
+  "chunk_samples": 1600,
+  "chunk_duration_s": 0.1,
+  "measure_seconds_target": 10.0,
+  "measure_seconds_actual": 10.08901891700225,
+  "audio_seconds_processed": 10.100000000000001,
+  "chunks_processed": 101,
+  "latency_ms": {
+    "avg": 10.628618236998843,
+    "p50": 5.553014001634438,
+    "p95": 7.963263000419829,
+    "max": 502.7448819964775
+  },
+  "rtf_avg": 0.10628618236998842,
+  "cpu_utilization_percent": 41.21211921798474,
+  "gpu_utilization_percent": 0.0,
+  "error": null,
+  "notes": [
+    "CPU utilization is process_time / wall_time.",
+    "GPU utilization uses nvidia-smi when available; otherwise null."
+  ]
+}
