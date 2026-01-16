@@ -1,6 +1,7 @@
 import os, sys, time, json, wave
 import numpy as np
 from typing import Optional
+import grpc
 
 import aec3_py  # aec3-py (maturin build)
 
@@ -39,11 +40,23 @@ def f32_to_i16_bytes(x: np.ndarray) -> bytes:
 
 def run_aec3(
     launch_stream: bool = True,
-    beam_wav_path: str = "beam.wav",
-    echo_wav_path: str = "echo.wav",
-    out_wav_path: str = "aec3_out.wav",
+    beam_wav_path: Optional[str] = None,
+    echo_wav_path: Optional[str] = None,
+    out_wav_path: Optional[str] = None,
     report_path: Optional[str] = None,
 ):
+    # Set default paths if not provided
+    if beam_wav_path is None:
+        beam_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "automatic_echo_cancellation", "beam_aec3.wav")
+    if echo_wav_path is None:
+        echo_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "automatic_echo_cancellation", "echo_aec3.wav")
+    if out_wav_path is None:
+        out_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "automatic_echo_cancellation", "aec3_out.wav")
+    
+    # Ensure directories exist
+    os.makedirs(os.path.dirname(beam_wav_path), exist_ok=True)
+    os.makedirs(os.path.dirname(echo_wav_path), exist_ok=True)
+    os.makedirs(os.path.dirname(out_wav_path), exist_ok=True)
     print("[aec3] starting...", flush=True)
 
     if launch_stream:
@@ -79,10 +92,57 @@ def run_aec3(
     processed_chunks = 0
     start_wall = time.perf_counter()
     start_cpu = time.process_time()
+    error_occurred = None
 
     try:
         while True:
-            payload = next(subscriber)
+            # Check time limit first
+            if (time.perf_counter() - start_wall) >= MEASURE_SECONDS:
+                print(f"[aec3] Reached time limit: {MEASURE_SECONDS}s, processed {processed_chunks} chunks", flush=True)
+                break
+            
+            try:
+                payload = next(subscriber)
+            except StopIteration:
+                # Stream ended normally
+                print(f"[aec3] Stream ended. Processed {processed_chunks} chunks, continuing until time limit...", flush=True)
+                # Continue loop to check time limit - don't break yet
+                time.sleep(0.01)  # Small sleep to avoid busy waiting
+                continue
+            except grpc.RpcError as e:
+                error_occurred = e
+                elapsed = time.perf_counter() - start_wall
+                print(f"[aec3] gRPC error reading from stream at {elapsed:.3f}s: {e.code()} - {e.details()}", flush=True)
+                import traceback
+                traceback.print_exc()
+                # Check if we've reached time limit despite the error
+                if elapsed >= MEASURE_SECONDS:
+                    print(f"[aec3] Reached time limit despite gRPC error. Processed {processed_chunks} chunks", flush=True)
+                    break
+                else:
+                    # Error occurred before time limit - try to continue if possible
+                    print(f"[aec3] gRPC error occurred at {elapsed:.2f}s. Processed {processed_chunks} chunks. Expected {MEASURE_SECONDS}s", flush=True)
+                    # Don't break immediately - wait a bit and see if we can continue
+                    if elapsed < MEASURE_SECONDS - 1.0:
+                        print(f"[aec3] Waiting for time limit...", flush=True)
+                        time.sleep(0.1)
+                        continue
+                    break
+            except Exception as e:
+                error_occurred = e
+                elapsed = time.perf_counter() - start_wall
+                print(f"[aec3] Error reading from stream at {elapsed:.3f}s: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                # Don't break immediately - check if we've reached time limit
+                if elapsed >= MEASURE_SECONDS:
+                    print(f"[aec3] Reached time limit after error. Processed {processed_chunks} chunks", flush=True)
+                    break
+                # If not at time limit yet, wait a bit and continue checking
+                if elapsed < MEASURE_SECONDS - 1.0:
+                    time.sleep(0.1)
+                    continue
+                break
 
             beam = pcm_to_f32_1d(payload["beam"])  # capture (mic/beam)
             echo = pcm_to_f32_1d(payload["echo"])  # render reference
@@ -129,10 +189,13 @@ def run_aec3(
             if processed_chunks % 10 == 0:
                 print(f"[aec3] chunks={processed_chunks} last_latency_ms={lat_ms[-1]:.2f}", flush=True)
 
-            if (time.perf_counter() - start_wall) >= MEASURE_SECONDS:
-                break
-
+    except KeyboardInterrupt:
+        print("[aec3] Stopped by user", flush=True)
+    except Exception as e:
+        error_occurred = e
+        print(f"[aec3] Error during processing: {e}", flush=True)
     finally:
+        print(f"[aec3] Closing files. Total chunks processed: {processed_chunks}, wall time: {time.perf_counter() - start_wall:.2f}s", flush=True)
         beam_wav.close()
         echo_wav.close()
         out_wav.close()
@@ -169,6 +232,7 @@ def run_aec3(
             "initial_delay_ms": INITIAL_DELAY_MS,
             "frame_samples": frame,
         },
+        "error": str(error_occurred) if error_occurred else None,
     }
 
     if report_path is None:

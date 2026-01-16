@@ -105,6 +105,7 @@ def run_all_aec():
     for thread in threads:
         print(f"  - Starting {thread.name}...")
         thread.start()
+        time.sleep(0.1)  # Small delay between starts to avoid connection issues
     
     print("Waiting for all AEC approaches to complete...")
     for thread in threads:

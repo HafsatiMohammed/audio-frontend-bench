@@ -4,17 +4,17 @@
   "chunk_samples": 1600,
   "chunk_duration_s": 0.1,
   "measure_seconds_target": 10.0,
-  "measure_seconds_actual": 10.278441473004932,
-  "audio_seconds_processed": 0.1,
-  "chunks_processed": 1,
+  "measure_seconds_actual": 10.073221008002292,
+  "audio_seconds_processed": 10.100000000000001,
+  "chunks_processed": 101,
   "latency_ms": {
-    "avg": 2.361001999815926,
-    "p50": 2.361001999815926,
-    "p95": 2.361001999815926,
-    "max": 2.361001999815926
+    "avg": 3.1420160603644973,
+    "p50": 2.9673450044356287,
+    "p95": 5.51038900448475,
+    "max": 6.183930003317073
   },
-  "rtf_avg": 0.02361001999815926,
-  "cpu_utilization_percent": 74.77212349931442,
+  "rtf_avg": 0.03142016060364497,
+  "cpu_utilization_percent": 444.5640142653942,
   "gpu_utilization_percent": 0.0,
   "echo_corr": {
     "before_avg": 0.0,

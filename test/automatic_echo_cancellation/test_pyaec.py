@@ -1,6 +1,7 @@
 import os, sys, time, json, wave
 import numpy as np
 from typing import Optional
+import grpc
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 STREAM_DIR = os.path.join(ROOT_DIR, "stream")
@@ -51,12 +52,24 @@ def chunk_to_frames(x: np.ndarray, frame_samples: int) -> list[np.ndarray]:
 
 def run_pyaec_measurement(
     launch_stream: bool = True,
-    beam_wav_path: str = "beam.wav",
-    echo_wav_path: str = "echo.wav",
-    out_wav_path: str = "aec_pyaec.wav",
+    beam_wav_path: Optional[str] = None,
+    echo_wav_path: Optional[str] = None,
+    out_wav_path: Optional[str] = None,
     report_path: Optional[str] = None,
     filter_length_samples: int = 6400,  # 0.4s @16k (as in their example) :contentReference[oaicite:12]{index=12}
 ):
+    # Set default paths if not provided
+    if beam_wav_path is None:
+        beam_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "automatic_echo_cancellation", "beam_pyaec.wav")
+    if echo_wav_path is None:
+        echo_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "automatic_echo_cancellation", "echo_pyaec.wav")
+    if out_wav_path is None:
+        out_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "automatic_echo_cancellation", "aec_pyaec.wav")
+    
+    # Ensure directories exist
+    os.makedirs(os.path.dirname(beam_wav_path), exist_ok=True)
+    os.makedirs(os.path.dirname(echo_wav_path), exist_ok=True)
+    os.makedirs(os.path.dirname(out_wav_path), exist_ok=True)
     if launch_stream:
         launch_streaming()
         time.sleep(1.0)
@@ -64,6 +77,8 @@ def run_pyaec_measurement(
     aec = Aec(FRAME_SAMPLES, int(filter_length_samples), SR, True)
 
     subscriber = grpc_subscribe.subscribe_audio_frames(host="127.0.0.1", port=50051)
+    print(f"[pyaec] Subscribed to stream", flush=True)
+    time.sleep(0.2)  # Small delay to ensure connection is established
 
     beam_wav = wave.open(beam_wav_path, "wb")
     echo_wav = wave.open(echo_wav_path, "wb")
@@ -84,46 +99,109 @@ def run_pyaec_measurement(
 
     try:
         while True:
-            payload = next(subscriber)
-            beam = payload["beam"]
-            echo = payload["echo"]
-
-            beam_i16 = float_to_int16(np.asarray(beam).reshape(-1))
-            echo_i16 = float_to_int16(np.asarray(echo).reshape(-1))
-
-            t0 = time.perf_counter()
-
-            out_frames = []
-            for b10, e10 in zip(
-                chunk_to_frames(beam_i16, FRAME_SAMPLES),
-                chunk_to_frames(echo_i16, FRAME_SAMPLES),
-            ):
-                # cancel_echo(mic, ref) :contentReference[oaicite:13]{index=13}
-                out10 = aec.cancel_echo(b10, e10)
-                out10 = np.asarray(out10, dtype=np.int16)
-                out_frames.append(out10)
-
-            out_i16 = np.concatenate(out_frames, axis=0)
-
-            t1 = time.perf_counter()
-
-            beam_wav.writeframes(beam_i16.tobytes())
-            echo_wav.writeframes(echo_i16.tobytes())
-            out_wav.writeframes(out_i16.tobytes())
-
-            lat_ms.append((t1 - t0) * 1000.0)
-            corr_before.append(corr(beam_i16, echo_i16))
-            corr_after.append(corr(out_i16, echo_i16))
-
-            chunks += 1
-            if (time.perf_counter() - start_wall) >= MEASURE_SECONDS:
+            # Check time limit first
+            elapsed = time.perf_counter() - start_wall
+            if elapsed >= MEASURE_SECONDS:
+                print(f"[pyaec] Reached time limit: {MEASURE_SECONDS}s, processed {chunks} chunks", flush=True)
                 break
+            
+            try:
+                payload = next(subscriber)
+                if chunks == 0:
+                    print(f"[pyaec] Got first frame at {elapsed:.3f}s", flush=True)
+            except StopIteration:
+                # Stream ended - check if we've processed enough or reached time limit
+                elapsed = time.perf_counter() - start_wall
+                print(f"[pyaec] StopIteration at {elapsed:.3f}s, processed {chunks} chunks", flush=True)
+                if elapsed >= MEASURE_SECONDS:
+                    print(f"[pyaec] Stream ended at {elapsed:.2f}s, reached time limit. Processed {chunks} chunks", flush=True)
+                    break
+                else:
+                    # Stream ended early but we haven't reached time limit
+                    print(f"[pyaec] Stream ended early at {elapsed:.2f}s. Processed {chunks} chunks. Expected {MEASURE_SECONDS}s", flush=True)
+                    err = "Stream ended early before time limit"
+                    break
+            except grpc.RpcError as e:
+                err = e
+                elapsed = time.perf_counter() - start_wall
+                print(f"[pyaec] gRPC error reading from stream at {elapsed:.3f}s: {e.code()} - {e.details()}", flush=True)
+                import traceback
+                traceback.print_exc()
+                # Check if we've reached time limit despite the error
+                if elapsed >= MEASURE_SECONDS:
+                    print(f"[pyaec] Reached time limit despite gRPC error. Processed {chunks} chunks", flush=True)
+                    break
+                else:
+                    # Error occurred before time limit - try to continue if possible
+                    print(f"[pyaec] gRPC error occurred at {elapsed:.2f}s. Processed {chunks} chunks. Expected {MEASURE_SECONDS}s", flush=True)
+                    # Don't break immediately - wait a bit and see if we can continue
+                    if elapsed < MEASURE_SECONDS - 1.0:
+                        print(f"[pyaec] Waiting for time limit...", flush=True)
+                        time.sleep(0.1)
+                        continue
+                    break
+            except Exception as e:
+                err = e
+                elapsed = time.perf_counter() - start_wall
+                print(f"[pyaec] Error reading from stream at {elapsed:.3f}s: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                # Check if we've reached time limit despite the error
+                if elapsed >= MEASURE_SECONDS:
+                    print(f"[pyaec] Reached time limit despite error. Processed {chunks} chunks", flush=True)
+                    break
+                else:
+                    # Error occurred before time limit
+                    print(f"[pyaec] Error occurred at {elapsed:.2f}s. Processed {chunks} chunks. Expected {MEASURE_SECONDS}s", flush=True)
+                    break
+            
+            try:
+                beam = payload["beam"]
+                echo = payload["echo"]
+
+                beam_i16 = float_to_int16(np.asarray(beam).reshape(-1))
+                echo_i16 = float_to_int16(np.asarray(echo).reshape(-1))
+
+                t0 = time.perf_counter()
+
+                out_frames = []
+                for b10, e10 in zip(
+                    chunk_to_frames(beam_i16, FRAME_SAMPLES),
+                    chunk_to_frames(echo_i16, FRAME_SAMPLES),
+                ):
+                    # cancel_echo(mic, ref) :contentReference[oaicite:13]{index=13}
+                    out10 = aec.cancel_echo(b10, e10)
+                    out10 = np.asarray(out10, dtype=np.int16)
+                    out_frames.append(out10)
+
+                out_i16 = np.concatenate(out_frames, axis=0)
+
+                t1 = time.perf_counter()
+
+                beam_wav.writeframes(beam_i16.tobytes())
+                echo_wav.writeframes(echo_i16.tobytes())
+                out_wav.writeframes(out_i16.tobytes())
+                
+                lat_ms.append((t1 - t0) * 1000.0)
+                corr_before.append(corr(beam_i16, echo_i16))
+                corr_after.append(corr(out_i16, echo_i16))
+
+                chunks += 1
+            except Exception as e:
+                print(f"[pyaec] Error processing frame {chunks}: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                err = e
+                # Continue to next frame instead of breaking
+                continue
 
     except KeyboardInterrupt:
-        pass
+        print("[pyaec] Stopped by user", flush=True)
     except Exception as e:
         err = e
+        print(f"[pyaec] Error during processing: {e}", flush=True)
     finally:
+        print(f"[pyaec] Closing files. Total chunks processed: {chunks}, wall time: {time.perf_counter() - start_wall:.2f}s", flush=True)
         beam_wav.close()
         echo_wav.close()
         out_wav.close()

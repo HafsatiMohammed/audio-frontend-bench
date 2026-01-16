@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import numpy as np
 from typing import Optional
+import grpc
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 STREAM_DIR = os.path.join(ROOT_DIR, "stream")
@@ -73,11 +74,23 @@ def corr(a: np.ndarray, b: np.ndarray) -> float:
 
 def run_dec_measurement(
     launch_stream: bool = True,
-    beam_wav_path: str = "beam.wav",
-    echo_wav_path: str = "echo.wav",
-    out_wav_path: str = "Icassp_baseline_aec_challenge.wav",
+    beam_wav_path: Optional[str] = None,
+    echo_wav_path: Optional[str] = None,
+    out_wav_path: Optional[str] = None,
     report_path: Optional[str] = None,
 ):
+    # Set default paths if not provided
+    if beam_wav_path is None:
+        beam_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "automatic_echo_cancellation", "beam_dec.wav")
+    if echo_wav_path is None:
+        echo_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "automatic_echo_cancellation", "echo_dec.wav")
+    if out_wav_path is None:
+        out_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "automatic_echo_cancellation", "Icassp_baseline_aec_challenge.wav")
+    
+    # Ensure directories exist
+    os.makedirs(os.path.dirname(beam_wav_path), exist_ok=True)
+    os.makedirs(os.path.dirname(echo_wav_path), exist_ok=True)
+    os.makedirs(os.path.dirname(out_wav_path), exist_ok=True)
     if not os.path.exists(MODEL_PATH):
         raise FileNotFoundError(f"Missing model: {MODEL_PATH}")
 
@@ -90,6 +103,8 @@ def run_dec_measurement(
     dec = DECStreamAEC(model_path=MODEL_PATH, providers=providers)
 
     subscriber = grpc_subscribe.subscribe_audio_frames(host="127.0.0.1", port=50051)
+    print(f"[DEC] Subscribed to stream", flush=True)
+    time.sleep(0.2)  # Small delay to ensure connection is established
 
     beam_wav = wave.open(beam_wav_path, "wb")
     echo_wav = wave.open(echo_wav_path, "wb")
@@ -111,49 +126,113 @@ def run_dec_measurement(
 
     try:
         while True:
-            payload = next(subscriber)
-            beam = payload["beam"]  # near-end mixture
-            echo = payload["echo"]  # far-end reference
-
-            beam_f = pcm_to_float32(beam)
-            echo_f = pcm_to_float32(echo)
-
-            # Keep chunk length stable
-            beam_f = beam_f[:CHUNK_SAMPLES]
-            echo_f = echo_f[:CHUNK_SAMPLES]
-            if beam_f.shape[0] < CHUNK_SAMPLES:
-                beam_f = np.pad(beam_f, (0, CHUNK_SAMPLES - beam_f.shape[0]))
-            if echo_f.shape[0] < CHUNK_SAMPLES:
-                echo_f = np.pad(echo_f, (0, CHUNK_SAMPLES - echo_f.shape[0]))
-
-            # write raw
-            beam_wav.writeframes(float_to_int16(beam_f).tobytes())
-            echo_wav.writeframes(float_to_int16(echo_f).tobytes())
-
-            t0 = time.perf_counter()
-            y = dec.process_chunk(beam_f, echo_f)  # (1600,)
-            t1 = time.perf_counter()
-
-            out_wav.writeframes(float_to_int16(y).tobytes())
-
-            latencies_ms.append((t1 - t0) * 1000.0)
-            corr_before.append(corr(beam_f, echo_f))
-            corr_after.append(corr(y, echo_f))
-
-            gpu_util = get_gpu_utilization_percent()
-            if gpu_util is not None:
-                gpu_utils.append(gpu_util)
-
-            processed_chunks += 1
-            if (time.perf_counter() - start_wall) >= MEASURE_SECONDS:
+            # Check time limit first
+            elapsed = time.perf_counter() - start_wall
+            if elapsed >= MEASURE_SECONDS:
+                print(f"[DEC] Reached time limit: {MEASURE_SECONDS}s, processed {processed_chunks} chunks", flush=True)
                 break
+            
+            try:
+                payload = next(subscriber)
+                if processed_chunks == 0:
+                    print(f"[DEC] Got first frame at {elapsed:.3f}s", flush=True)
+            except StopIteration:
+                # Stream ended - check if we've processed enough or reached time limit
+                elapsed = time.perf_counter() - start_wall
+                print(f"[DEC] StopIteration at {elapsed:.3f}s, processed {processed_chunks} chunks", flush=True)
+                if elapsed >= MEASURE_SECONDS:
+                    print(f"[DEC] Stream ended at {elapsed:.2f}s, reached time limit. Processed {processed_chunks} chunks", flush=True)
+                    break
+                else:
+                    # Stream ended early but we haven't reached time limit
+                    print(f"[DEC] Stream ended early at {elapsed:.2f}s. Processed {processed_chunks} chunks. Expected {MEASURE_SECONDS}s", flush=True)
+                    error_occurred = "Stream ended early before time limit"
+                    break
+            except grpc.RpcError as e:
+                error_occurred = e
+                elapsed = time.perf_counter() - start_wall
+                print(f"[DEC] gRPC error reading from stream at {elapsed:.3f}s: {e.code()} - {e.details()}", flush=True)
+                import traceback
+                traceback.print_exc()
+                # Check if we've reached time limit despite the error
+                if elapsed >= MEASURE_SECONDS:
+                    print(f"[DEC] Reached time limit despite gRPC error. Processed {processed_chunks} chunks", flush=True)
+                    break
+                else:
+                    # Error occurred before time limit - try to continue if possible
+                    print(f"[DEC] gRPC error occurred at {elapsed:.2f}s. Processed {processed_chunks} chunks. Expected {MEASURE_SECONDS}s", flush=True)
+                    # Don't break immediately - wait a bit and see if we can continue
+                    if elapsed < MEASURE_SECONDS - 1.0:
+                        print(f"[DEC] Waiting for time limit...", flush=True)
+                        time.sleep(0.1)
+                        continue
+                    break
+            except Exception as e:
+                error_occurred = e
+                elapsed = time.perf_counter() - start_wall
+                print(f"[DEC] Error reading from stream at {elapsed:.3f}s: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                # Check if we've reached time limit despite the error
+                if elapsed >= MEASURE_SECONDS:
+                    print(f"[DEC] Reached time limit despite error. Processed {processed_chunks} chunks", flush=True)
+                    break
+                else:
+                    # Error occurred before time limit
+                    print(f"[DEC] Error occurred at {elapsed:.2f}s. Processed {processed_chunks} chunks. Expected {MEASURE_SECONDS}s", flush=True)
+                    break
+            
+            try:
+                beam = payload["beam"]  # near-end mixture
+                echo = payload["echo"]  # far-end reference
+
+                beam_f = pcm_to_float32(beam)
+                echo_f = pcm_to_float32(echo)
+
+                # Keep chunk length stable
+                beam_f = beam_f[:CHUNK_SAMPLES]
+                echo_f = echo_f[:CHUNK_SAMPLES]
+                if beam_f.shape[0] < CHUNK_SAMPLES:
+                    beam_f = np.pad(beam_f, (0, CHUNK_SAMPLES - beam_f.shape[0]))
+                if echo_f.shape[0] < CHUNK_SAMPLES:
+                    echo_f = np.pad(echo_f, (0, CHUNK_SAMPLES - echo_f.shape[0]))
+
+                # write raw
+                beam_wav.writeframes(float_to_int16(beam_f).tobytes())
+                echo_wav.writeframes(float_to_int16(echo_f).tobytes())
+
+                t0 = time.perf_counter()
+                y = dec.process_chunk(beam_f, echo_f)  # (1600,)
+                t1 = time.perf_counter()
+
+                out_wav.writeframes(float_to_int16(y).tobytes())
+                
+                latencies_ms.append((t1 - t0) * 1000.0)
+                corr_before.append(corr(beam_f, echo_f))
+                corr_after.append(corr(y, echo_f))
+
+                gpu_util = get_gpu_utilization_percent()
+                if gpu_util is not None:
+                    gpu_utils.append(gpu_util)
+
+                processed_chunks += 1
+                if processed_chunks % 10 == 0:
+                    print(f"[DEC] Processed {processed_chunks} chunks", flush=True)
+            except Exception as e:
+                print(f"[DEC] Error processing frame {processed_chunks}: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                error_occurred = e
+                # Continue to next frame instead of breaking
+                continue
 
     except KeyboardInterrupt:
-        pass
+        print("[DEC] Stopped by user", flush=True)
     except Exception as e:
         error_occurred = e
-        print("DEC: Error:", e)
+        print(f"[DEC] Error during processing: {e}", flush=True)
     finally:
+        print(f"[DEC] Closing files. Total chunks processed: {processed_chunks}, wall time: {time.perf_counter() - start_wall:.2f}s", flush=True)
         # optional tail flush
         try:
             tail = dec.flush()

@@ -127,10 +127,19 @@ def flush_df_tail_to_16k(df: DeepFilterNetStreaming) -> np.ndarray:
 
 def run_df_measurement(
     launch_stream: bool = True,
-    beam_wav_path: str = "beam.wav",
-    den_wav_path: str = "dfdenoise.wav",
+    beam_wav_path: Optional[str] = None,
+    den_wav_path: Optional[str] = None,
     report_path: Optional[str] = None,
 ):
+    # Set default paths if not provided
+    if beam_wav_path is None:
+        beam_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "nonlinear_speech_enhancement", "beam_df.wav")
+    if den_wav_path is None:
+        den_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "nonlinear_speech_enhancement", "dfdenoise.wav")
+    
+    # Ensure directories exist
+    os.makedirs(os.path.dirname(beam_wav_path), exist_ok=True)
+    os.makedirs(os.path.dirname(den_wav_path), exist_ok=True)
     if launch_stream:
         launch_streaming()
         time.sleep(1.0)

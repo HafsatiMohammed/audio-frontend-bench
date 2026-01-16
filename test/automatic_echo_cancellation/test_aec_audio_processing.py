@@ -1,6 +1,7 @@
 import os, sys, time, json, wave
 import numpy as np
 from typing import Optional
+import grpc
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 STREAM_DIR = os.path.join(ROOT_DIR, "stream")
@@ -58,12 +59,24 @@ def find_reverse_method(ap: AudioProcessor):
 
 def run_aec_audio_processing_measurement(
     launch_stream: bool = True,
-    beam_wav_path: str = "beam.wav",
-    echo_wav_path: str = "echo.wav",
-    out_wav_path: str = "aec_aec_audio_processing.wav",
+    beam_wav_path: Optional[str] = None,
+    echo_wav_path: Optional[str] = None,
+    out_wav_path: Optional[str] = None,
     report_path: Optional[str] = None,
     stream_delay_ms: int = 50,
 ):
+    # Set default paths if not provided
+    if beam_wav_path is None:
+        beam_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "automatic_echo_cancellation", "beam_aec_audio_processing.wav")
+    if echo_wav_path is None:
+        echo_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "automatic_echo_cancellation", "echo_aec_audio_processing.wav")
+    if out_wav_path is None:
+        out_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "automatic_echo_cancellation", "aec_aec_audio_processing.wav")
+    
+    # Ensure directories exist
+    os.makedirs(os.path.dirname(beam_wav_path), exist_ok=True)
+    os.makedirs(os.path.dirname(echo_wav_path), exist_ok=True)
+    os.makedirs(os.path.dirname(out_wav_path), exist_ok=True)
     if launch_stream:
         launch_streaming()
         time.sleep(1.0)
@@ -81,6 +94,7 @@ def run_aec_audio_processing_measurement(
         )
 
     subscriber = grpc_subscribe.subscribe_audio_frames(host="127.0.0.1", port=50051)
+    print(f"[aec_audio_processing] Subscribed to stream", flush=True)
 
     beam_wav = wave.open(beam_wav_path, "wb")
     echo_wav = wave.open(echo_wav_path, "wb")
@@ -101,49 +115,117 @@ def run_aec_audio_processing_measurement(
 
     try:
         while True:
-            payload = next(subscriber)
-            beam = payload["beam"]
-            echo = payload["echo"]
-
-            beam_i16 = float_to_int16(np.asarray(beam).reshape(-1))
-            echo_i16 = float_to_int16(np.asarray(echo).reshape(-1))
-
-            t0 = time.perf_counter()
-
-            out_frames = []
-            for b10, e10 in zip(
-                chunk_to_frames(beam_i16, FRAME_SAMPLES),
-                chunk_to_frames(echo_i16, FRAME_SAMPLES),
-            ):
-                # Feed reverse (far-end / render)
-                reverse_fn(e10.tobytes())
-
-                # Process capture (near-end / mic)
-                out_bytes = ap.process_stream(b10.tobytes())  # :contentReference[oaicite:24]{index=24}
-                out10 = np.frombuffer(out_bytes, dtype=np.int16)
-                out_frames.append(out10)
-
-            out_i16 = np.concatenate(out_frames, axis=0)
-
-            t1 = time.perf_counter()
-
-            beam_wav.writeframes(beam_i16.tobytes())
-            echo_wav.writeframes(echo_i16.tobytes())
-            out_wav.writeframes(out_i16.tobytes())
-
-            lat_ms.append((t1 - t0) * 1000.0)
-            corr_before.append(corr(beam_i16, echo_i16))
-            corr_after.append(corr(out_i16, echo_i16))
-
-            chunks += 1
+            # Check time limit first
             if (time.perf_counter() - start_wall) >= MEASURE_SECONDS:
+                print(f"[aec_audio_processing] Reached time limit: {MEASURE_SECONDS}s, processed {chunks} chunks", flush=True)
                 break
+            
+            try:
+                payload = next(subscriber)
+                if chunks == 0:
+                    print(f"[aec_audio_processing] Got first frame", flush=True)
+            except StopIteration:
+                # Stream ended - check if we've processed enough or reached time limit
+                elapsed = time.perf_counter() - start_wall
+                if elapsed >= MEASURE_SECONDS:
+                    print(f"[aec_audio_processing] Stream ended at {elapsed:.2f}s, reached time limit. Processed {chunks} chunks", flush=True)
+                    break
+                else:
+                    # Stream ended early but we haven't reached time limit
+                    print(f"[aec_audio_processing] Stream ended early at {elapsed:.2f}s. Processed {chunks} chunks. Expected {MEASURE_SECONDS}s", flush=True)
+                    err = "Stream ended early before time limit"
+                    break
+            except grpc.RpcError as e:
+                err = e
+                elapsed = time.perf_counter() - start_wall
+                print(f"[aec_audio_processing] gRPC error reading from stream at {elapsed:.3f}s: {e.code()} - {e.details()}", flush=True)
+                import traceback
+                traceback.print_exc()
+                # Check if we've reached time limit despite the error
+                if elapsed >= MEASURE_SECONDS:
+                    print(f"[aec_audio_processing] Reached time limit despite gRPC error. Processed {chunks} chunks", flush=True)
+                    break
+                else:
+                    # Error occurred before time limit - try to continue if possible
+                    print(f"[aec_audio_processing] gRPC error occurred at {elapsed:.2f}s. Processed {chunks} chunks. Expected {MEASURE_SECONDS}s", flush=True)
+                    # Don't break immediately - wait a bit and see if we can continue
+                    if elapsed < MEASURE_SECONDS - 1.0:
+                        print(f"[aec_audio_processing] Waiting for time limit...", flush=True)
+                        time.sleep(0.1)
+                        continue
+                    break
+            except Exception as e:
+                err = e
+                elapsed = time.perf_counter() - start_wall
+                print(f"[aec_audio_processing] Error reading from stream at {elapsed:.3f}s: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                # Check if we've reached time limit despite the error
+                if elapsed >= MEASURE_SECONDS:
+                    print(f"[aec_audio_processing] Reached time limit despite error. Processed {chunks} chunks", flush=True)
+                    break
+                else:
+                    # Error occurred before time limit
+                    print(f"[aec_audio_processing] Error occurred at {elapsed:.2f}s. Processed {chunks} chunks. Expected {MEASURE_SECONDS}s", flush=True)
+                    break
+            
+            try:
+                beam = payload["beam"]
+                echo = payload["echo"]
+            except Exception as e:
+                print(f"[aec_audio_processing] Error extracting beam/echo from payload: {e}", flush=True)
+                err = e
+                continue
+
+            try:
+                beam_i16 = float_to_int16(np.asarray(beam).reshape(-1))
+                echo_i16 = float_to_int16(np.asarray(echo).reshape(-1))
+
+                t0 = time.perf_counter()
+
+                out_frames = []
+                for b10, e10 in zip(
+                    chunk_to_frames(beam_i16, FRAME_SAMPLES),
+                    chunk_to_frames(echo_i16, FRAME_SAMPLES),
+                ):
+                    # Feed reverse (far-end / render)
+                    reverse_fn(e10.tobytes())
+
+                    # Process capture (near-end / mic)
+                    out_bytes = ap.process_stream(b10.tobytes())  # :contentReference[oaicite:24]{index=24}
+                    out10 = np.frombuffer(out_bytes, dtype=np.int16)
+                    out_frames.append(out10)
+
+                out_i16 = np.concatenate(out_frames, axis=0)
+
+                t1 = time.perf_counter()
+
+                beam_wav.writeframes(beam_i16.tobytes())
+                echo_wav.writeframes(echo_i16.tobytes())
+                out_wav.writeframes(out_i16.tobytes())
+                
+                lat_ms.append((t1 - t0) * 1000.0)
+                corr_before.append(corr(beam_i16, echo_i16))
+                corr_after.append(corr(out_i16, echo_i16))
+
+                chunks += 1
+                if chunks % 10 == 0:
+                    print(f"[aec_audio_processing] Processed {chunks} chunks", flush=True)
+            except Exception as e:
+                print(f"[aec_audio_processing] Error processing frame {chunks}: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                err = e
+                # Continue to next frame instead of breaking
+                continue
 
     except KeyboardInterrupt:
-        pass
+        print("[aec_audio_processing] Stopped by user", flush=True)
     except Exception as e:
         err = e
+        print(f"[aec_audio_processing] Error during processing: {e}", flush=True)
     finally:
+        print(f"[aec_audio_processing] Closing files. Total chunks processed: {chunks}, wall time: {time.perf_counter() - start_wall:.2f}s", flush=True)
         beam_wav.close()
         echo_wav.close()
         out_wav.close()

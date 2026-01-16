@@ -3,17 +3,17 @@
   "chunk_samples": 1600,
   "chunk_duration_s": 0.1,
   "measure_seconds_target": 10.0,
-  "measure_seconds_actual": 10.267148786006146,
-  "audio_seconds_processed": 0.1,
-  "chunks_processed": 1,
+  "measure_seconds_actual": 10.071270379005,
+  "audio_seconds_processed": 10.100000000000001,
+  "chunks_processed": 101,
   "latency_ms": {
-    "avg": 1.4756769960513338,
-    "p50": 1.4756769960513338,
-    "p95": 1.4756769960513338,
-    "max": 1.4756769960513338
+    "avg": 1.6945390296422203,
+    "p50": 1.6132900054799393,
+    "p95": 2.4399710091529414,
+    "max": 2.5256230001104996
   },
-  "rtf_avg": 0.014756769960513338,
-  "cpu_utilization_percent": 75.58719765099306,
+  "rtf_avg": 0.0169453902964222,
+  "cpu_utilization_percent": 455.4640815981337,
   "aec3_metrics_avg": {
     "erl_db": -30.0,
     "erle_db": 0.17551203072071075,
@@ -22,5 +22,6 @@
   "params": {
     "initial_delay_ms": 120,
     "frame_samples": 160
-  }
+  },
+  "error": null
 }
