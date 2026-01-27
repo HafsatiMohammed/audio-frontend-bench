@@ -1,0 +1,26 @@
+{
+  "model": "speechbrain/metricgan-plus-voicebank",
+  "device": "cuda",
+  "sample_rate_hz": 16000,
+  "chunk_samples": 1600,
+  "chunk_duration_s": 0.1,
+  "measure_seconds_target": 10.0,
+  "measure_seconds_actual": 10.099433504001354,
+  "audio_seconds_processed": 10.100000000000001,
+  "chunks_processed": 101,
+  "left_context_s": 1.0,
+  "latency_ms": {
+    "avg": 4.705017663420024,
+    "p50": 3.0798740008322056,
+    "p95": 3.2138989990926348,
+    "max": 167.66001600262825
+  },
+  "rtf_avg": 0.047050176634200226,
+  "cpu_utilization_percent": 6.886949527658448,
+  "gpu_utilization_percent": 2.881188118811881,
+  "error": null,
+  "notes": [
+    "Uses SpeechBrain SpectralMaskEnhancement.enhance_batch().",
+    "Left-context wrapper uses past audio only (no lookahead), so it does not add algorithmic latency."
+  ]
+}

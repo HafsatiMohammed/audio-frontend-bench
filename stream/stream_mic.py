@@ -57,6 +57,7 @@ def _find_device_index(pa, device_name):
     for index in range(pa.get_device_count()):
         info = pa.get_device_info_by_index(index)
         name = info.get("name", "").lower()
+        #print(name)
         if device_name in name and info.get("maxInputChannels", 0) > 0:
             return index
     return None
@@ -79,7 +80,11 @@ def stream_audio(cfg):
     if device_name and device_index is None:
         raise RuntimeError(f"input device '{device_name}' not found")
 
+
+
+
     valid_raw_channels = []
+    print('hellooooooooooooooooooooooooooooooooooooooooooo-1')
     if raw_channels:
         for idx in raw_channels:
             if 0 <= idx < channels:
@@ -87,6 +92,8 @@ def stream_audio(cfg):
             else:
                 _warn(f"raw channel index {idx} out of range for {channels} channels; ignoring")
     raw_channels = valid_raw_channels
+
+    print('hellooooooooooooooooooooooooooooooooooooooooooo-2')
 
     for name, channel_index in [("beam_channel", beam_channel), ("echo_channel", echo_channel)]:
         if channel_index is not None and (channel_index < 0 or channel_index >= channels):
@@ -96,6 +103,7 @@ def stream_audio(cfg):
             else:
                 echo_channel = None
 
+    print('hellooooooooooooooooooooooooooooooooooooooooooo0')
     stream = pa.open(
         format=pyaudio.paInt16,
         channels=channels,
@@ -104,6 +112,8 @@ def stream_audio(cfg):
         input_device_index=device_index,
         frames_per_buffer=int(chunk),
     )
+    print('hellooooooooooooooooooooooooooooooooooooooooooo1')
+
 
     try:
         while True:

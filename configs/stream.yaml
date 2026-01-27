@@ -1,10 +1,10 @@
-mic_name: respeaker
-sampling_rat: 16000
-chunk: 1600 
-channels: 6 
-raw_channels: ["1:4"]
-beam_channel: 0 
-echo_channel: 5
+mic_name: A01009
+sampling_rat: 48000
+chunk: 4800 
+channels: 2
+raw_channels: 
+beam_channel: 1
+echo_channel: 
 
 
 

@@ -1,0 +1,26 @@
+{
+  "model": "speechbrain/mtl-mimic-voicebank",
+  "device": "cuda",
+  "sample_rate_hz": 16000,
+  "chunk_samples": 1600,
+  "chunk_duration_s": 0.1,
+  "measure_seconds_target": 10.0,
+  "measure_seconds_actual": 10.043200191001233,
+  "audio_seconds_processed": 10.100000000000001,
+  "chunks_processed": 101,
+  "left_context_s": 1.0,
+  "latency_ms": {
+    "avg": 7.448310347009994,
+    "p50": 5.873161004274152,
+    "p95": 6.425027000659611,
+    "max": 157.8268930024933
+  },
+  "rtf_avg": 0.07448310347009993,
+  "cpu_utilization_percent": 9.905566294410605,
+  "gpu_utilization_percent": 6.792079207920792,
+  "error": null,
+  "notes": [
+    "Uses SpeechBrain WaveformEnhancement.enhance_batch().",
+    "Left-context wrapper uses past audio only (no lookahead)."
+  ]
+}
