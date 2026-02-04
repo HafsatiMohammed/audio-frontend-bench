@@ -53,11 +53,11 @@ def run_metricgan_plus_measurement(
     left_context_s: float = 1.0,  # wrapper on by default
 ):
     if beam_wav_path is None:
-        beam_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "linear_speech_enhancement", "beam_metricganplus.wav")
+        beam_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "nonlinear_speech_enhancement", "beam_metricganplus.wav")
     if den_wav_path is None:
-        den_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "linear_speech_enhancement", "metricganplus.wav")
+        den_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "nonlinear_speech_enhancement", "metricganplus.wav")
     if report_path is None:
-        report_path = os.path.join(ROOT_DIR, "reports", "linear_speech_enhancement", "report_metricganplus.json")
+        report_path = os.path.join(ROOT_DIR, "reports", "nonlinear_speech_enhancement", "report_metricganplus.json")
 
     os.makedirs(os.path.dirname(beam_wav_path), exist_ok=True)
     os.makedirs(os.path.dirname(den_wav_path), exist_ok=True)

@@ -1,10 +1,53 @@
-mic_name: A01009
-sampling_rat: 48000
-chunk: 4800 
+# configs/stream.yaml
+#
+# This single config can drive BOTH modes:
+# - XVF packed mode: 2ch @ 48k input -> unpack to 6ch @ 16k inside the script
+# - ReSpeaker / true multichannel: Nch @ Fs input -> bypass unpacking
+
+# Use a substring that appears in `pyaudio` device names.
+# For XVF3800 you said "A01009" shows up.
+mic_name: "A01009"
+
+# -------------------------
+# XVF PACKED MODE (recommended for XVF3800 packed output)
+# -------------------------
+sampling_rate: 48000
 channels: 2
-raw_channels: 
+
+# If you omit this, the script auto-detects packed mode when (sampling_rate==48000 and channels==2).
+packed: true
+
+# Must match the actual USB stream bit depth from the device.
+# If unsure: `./xvf_host USB_BIT_DEPTH`
+bit_depth: 16          # 16 or 32
+
+# XVF packed streams embed marker bits in the LSBs; stripping them helps.
+# 0 disables stripping.
+marker_bits: 2
+
+# Phase alignment (0..2). If audio looks scrambled, try 1 or 2.
+packed_offset: 0
+
+# Chunk size in OUTPUT frames (i.e. after unpacking at 16k).
+# Example: 160 = 10ms at 16k. Script reads 480 frames at 48k each loop.
+chunk: 160
+
+# -------------------------
+# UNPACKED (LOGICAL) CHANNEL MAPPING (6 channels @ 16k AFTER unpack)
+# Order is:
+# 0 = L_PK0
+# 1 = R_PK0
+# 2 = L_PK1
+# 3 = R_PK1
+# 4 = L_PK2
+# 5 = R_PK2
+#
+# If you routed:
+# - echo/ref to L_PK0
+# - beam to R_PK0
+# - mic0..3 to the remaining packed slots
+# then this mapping is correct:
+# -------------------------
+echo_channel: 0
 beam_channel: 1
-echo_channel: 
-
-
-
+raw_channels: [2, 3, 4, 5]

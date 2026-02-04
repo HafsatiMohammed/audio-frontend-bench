@@ -63,11 +63,11 @@ def run_sepformer_enh_measurement(
     tag = model_source.split("/")[-1]
 
     if beam_wav_path is None:
-        beam_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "linear_speech_enhancement", f"beam_{tag}.wav")
+        beam_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "nonlinear_speech_enhancement", f"beam_{tag}.wav")
     if den_wav_path is None:
-        den_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "linear_speech_enhancement", f"{tag}.wav")
+        den_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "nonlinear_speech_enhancement", f"{tag}.wav")
     if report_path is None:
-        report_path = os.path.join(ROOT_DIR, "reports", "linear_speech_enhancement", f"report_{tag}.json")
+        report_path = os.path.join(ROOT_DIR, "reports", "nonlinear_speech_enhancement", f"report_{tag}.json")
 
     os.makedirs(os.path.dirname(beam_wav_path), exist_ok=True)
     os.makedirs(os.path.dirname(den_wav_path), exist_ok=True)

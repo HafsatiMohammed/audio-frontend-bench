@@ -65,7 +65,7 @@ def test():
             raw = payload["raw"]
             beam = payload["beam"]
             echo = payload["echo"]
-            sample_rate = payload["sampling_rate"]
+            sample_rate = 16000 #payload["sampling_rate"]
 
             if target_samples is None and sample_rate:
                 target_samples = int(SAVE_SECONDS * sample_rate)

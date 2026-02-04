@@ -5,8 +5,6 @@ import sys
 import wave
 import time
 import json
-import shutil
-import subprocess
 from typing import Optional
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -19,6 +17,12 @@ if TEST_DIR not in sys.path:
 
 from grpc_proto import grpc_bus, grpc_subscribe
 from stream_and_subscription import launch_streaming
+from nonlinear_speech_enhancement.sb_common import (
+    get_gpu_utilization_percent,
+    float_to_int16,
+    ensure_mono_2d,
+    normalize_float_pcm,
+)
 
 # DeepFilterNet streaming wrapper
 # pip install dfnstream-py
@@ -31,58 +35,14 @@ CHUNK_SAMPLES = 1600
 MEASURE_SECONDS = 10.0
 
 
-def get_gpu_utilization_percent():
-    """
-    Best-effort GPU utilization via nvidia-smi. Returns float or None.
-    """
-    if shutil.which("nvidia-smi") is None:
-        return None
-    try:
-        out = subprocess.check_output(
-            ["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
-            text=True,
-        )
-        vals = [float(v.strip()) for v in out.splitlines() if v.strip()]
-        return float(sum(vals) / len(vals)) if vals else None
-    except Exception:
-        return None
-
-
-def float_to_int16(x: np.ndarray) -> np.ndarray:
-    """
-    x: float array, ideally in [-1,1], shape (N,)
-    returns int16 shape (N,)
-    """
-    x = np.asarray(x, dtype=np.float32)
-
-    # If floats look like PCM scale (e.g., +/- 20000), normalize
-    peak = float(np.max(np.abs(x))) if x.size else 0.0
-    if peak > 1.5:
-        x = x / 32768.0
-
-    x = np.clip(x, -1.0, 1.0)
-    return (x * 32767.0).astype(np.int16)
-
-
 def denoise_chunk_16k_float(beam, df: DeepFilterNetStreaming) -> np.ndarray:
     """
     beam: (N,) or (1,N) float32 at 16k
     returns: (1,N) float32 at 16k
     """
-    x = np.asarray(beam, dtype=np.float32)
-    if x.ndim == 1:
-        x = x[None, :]  # (1, N)
-    elif x.ndim != 2:
-        raise ValueError(f"Expected (N,) or (C,N), got {x.shape}")
-
-    C, N = x.shape
-    if C != 1:
-        raise ValueError("Expected mono (1, N). For multi-channel, use one DF instance per channel.")
-
-    # Normalize if needed (handles float PCM)
-    peak = float(np.max(np.abs(x))) if x.size else 0.0
-    if peak > 1.5:
-        x = x / 32768.0
+    x = ensure_mono_2d(beam)
+    x = normalize_float_pcm(x)
+    N = x.shape[1]
 
     # 16k -> 48k (exact x3)
     x48 = resample_poly(x, up=3, down=1, axis=1).astype(np.float32, copy=False)

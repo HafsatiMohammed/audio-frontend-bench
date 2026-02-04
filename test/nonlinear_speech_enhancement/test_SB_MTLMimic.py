@@ -53,11 +53,11 @@ def run_mtl_mimic_measurement(
     left_context_s: float = 1.0,
 ):
     if beam_wav_path is None:
-        beam_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "linear_speech_enhancement", "beam_mtlmimic.wav")
+        beam_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "nonlinear_speech_enhancement", "beam_mtlmimic.wav")
     if den_wav_path is None:
-        den_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "linear_speech_enhancement", "mtl_mimic.wav")
+        den_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "nonlinear_speech_enhancement", "mtl_mimic.wav")
     if report_path is None:
-        report_path = os.path.join(ROOT_DIR, "reports", "linear_speech_enhancement", "report_mtl_mimic.json")
+        report_path = os.path.join(ROOT_DIR, "reports", "nonlinear_speech_enhancement", "report_mtl_mimic.json")
 
     os.makedirs(os.path.dirname(beam_wav_path), exist_ok=True)
     os.makedirs(os.path.dirname(den_wav_path), exist_ok=True)

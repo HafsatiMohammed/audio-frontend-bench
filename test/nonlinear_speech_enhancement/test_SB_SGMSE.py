@@ -54,11 +54,11 @@ def run_sgmse_measurement(
     left_context_s: float = 0.0,  # default OFF (SGMSE can be heavy)
 ):
     if beam_wav_path is None:
-        beam_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "linear_speech_enhancement", "beam_sgmse.wav")
+        beam_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "nonlinear_speech_enhancement", "beam_sgmse.wav")
     if den_wav_path is None:
-        den_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "linear_speech_enhancement", "sgmse.wav")
+        den_wav_path = os.path.join(ROOT_DIR, "results_audio_files", "nonlinear_speech_enhancement", "sgmse.wav")
     if report_path is None:
-        report_path = os.path.join(ROOT_DIR, "reports", "linear_speech_enhancement", "report_sgmse.json")
+        report_path = os.path.join(ROOT_DIR, "reports", "nonlinear_speech_enhancement", "report_sgmse.json")
 
     os.makedirs(os.path.dirname(beam_wav_path), exist_ok=True)
     os.makedirs(os.path.dirname(den_wav_path), exist_ok=True)

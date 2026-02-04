@@ -1,0 +1,26 @@
+{
+  "model": "speechbrain/sepformer-dns4-16k-enhancement",
+  "device": "cuda",
+  "sample_rate_hz": 16000,
+  "chunk_samples": 1600,
+  "chunk_duration_s": 0.1,
+  "measure_seconds_target": 10.0,
+  "measure_seconds_actual": 10.064246077999996,
+  "audio_seconds_processed": 12.4,
+  "chunks_processed": 124,
+  "left_context_s": 1.0,
+  "latency_ms": {
+    "avg": 61.426443274080334,
+    "p50": 60.234806000153185,
+    "p95": 63.325461448403075,
+    "max": 170.63688700000057
+  },
+  "rtf_avg": 0.6142644327408033,
+  "cpu_utilization_percent": 144.6902912363388,
+  "gpu_utilization_percent": 76.46774193548387,
+  "error": null,
+  "notes": [
+    "Uses SpeechBrain SepformerSeparation.separate_batch(); output source index 0 is used as enhanced speech.",
+    "Left-context wrapper uses past audio only (no lookahead)."
+  ]
+}

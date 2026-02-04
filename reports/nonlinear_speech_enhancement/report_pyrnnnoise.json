@@ -3,18 +3,18 @@
   "chunk_samples": 1600,
   "chunk_duration_s": 0.1,
   "measure_seconds_target": 10.0,
-  "measure_seconds_actual": 10.08901891700225,
-  "audio_seconds_processed": 10.100000000000001,
-  "chunks_processed": 101,
+  "measure_seconds_actual": 10.001506774002337,
+  "audio_seconds_processed": 39.7,
+  "chunks_processed": 397,
   "latency_ms": {
-    "avg": 10.628618236998843,
-    "p50": 5.553014001634438,
-    "p95": 7.963263000419829,
-    "max": 502.7448819964775
+    "avg": 4.053264277285905,
+    "p50": 1.7541400011396036,
+    "p95": 2.6933915993140545,
+    "max": 862.1621349993802
   },
-  "rtf_avg": 0.10628618236998842,
-  "cpu_utilization_percent": 41.21211921798474,
-  "gpu_utilization_percent": 0.0,
+  "rtf_avg": 0.04053264277285904,
+  "cpu_utilization_percent": 158.107361223853,
+  "gpu_utilization_percent": 74.50629722921914,
   "error": null,
   "notes": [
     "CPU utilization is process_time / wall_time.",
